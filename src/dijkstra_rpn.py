@@ -28,6 +28,7 @@ class Lexer:
               'MINUS', 
               'MUL',
               'DIV',
+              'POW',
               'LBRACKET',
               'RBRACKET'
               )
@@ -36,6 +37,7 @@ class Lexer:
     t_MINUS     = r'-'
     t_MUL       = r'\*'
     t_DIV       = r'/'
+    t_POW       = r'\^'
     t_LBRACKET  = r'\('
     t_RBRACKET  = r'\)'
     
@@ -76,49 +78,63 @@ class Stack:
         
 class Parser:
     'Parsing expression and convert it to RPN (Reverse Polish notation)'
+    priority = (
+                r'\(', 
+                r'\)', 
+                r'\+|-', 
+                r'\*|/', 
+                r'\^', 
+                r'(um)|(up)'
+                )
+    
+    bin_operation = {
+                     'PLUS':    '+',
+                     'MINUS':   '-',
+                     'MUL':     '*',
+                     'DIV':     '/',
+                     'POW':     '^'
+                     }
+    
+    un_operation = {
+                    'PLUS':    'um',
+                    'MINUS':   'up'
+                    }
+    
     def __init__(self, lexer):
-        self.priority = [r'\(', r'\)', r'\+|-', r'\*|/', r'(um)|(up)']
         self.lexer = lexer
         
     def get_priority(self, sym):
-        for i, el in enumerate(self.priority):
-            if re.search(el, sym): return i
+        for i, el in enumerate(Parser.priority):
+            if re.match(el, sym): return i
 
-    def is_except(self, sym):
-        return re.search('(um)|(up)', sym)
+    def is_right(self, sym):
+        return re.match('(um)|(up)|(\^)', sym)
     
     def to_stack(self, sym):
         pr = self.get_priority(sym)
-        while not self.stack.is_empty() and pr <= self.get_priority(self.stack.back()) and not self.is_except(sym):
+        while not self.stack.is_empty() and pr <= self.get_priority(self.stack.back()) and not self.is_right(sym):
             self.out.append(self.stack.pop())
         self.stack.push(sym)
                          
     def parse_operand(self, t):
-        if t.type == 'NUMBER': 
+        v = Parser.un_operation.get(t.type)
+        if v:
+            self.stack.push(v)
+        elif t.type == 'NUMBER': 
             self.out.append(t.value)
             self.is_next_operand = False
             return
         elif t.type == 'LBRACKET':
-            self.stack.push(t.value)
-        elif t.type == 'MINUS':
-            self.to_stack('um')
-        elif t.type == 'PLUS':
-            self.to_stack('up')
+            self.stack.push("(")
         else:
             raise MyException(t.lexpos, "Invalid expression. Unexpected symbol '" + t.value + "'")
         self.is_next_operand = True
         
     def parse_operation(self, t):
-        if t.type == 'PLUS':
-            self.to_stack('+')
-        elif t.type == 'MINUS':
-            self.to_stack('-')
-        elif t.type == 'MUL':
-            self.to_stack('*')
-        elif t.type == 'DIV':
-            self.to_stack('/')
-        else:
+        v = Parser.bin_operation.get(t.type)
+        if not v:
             raise MyException(t.lexpos, "Invalid expression. Unexpected symbol '" + str(t.value) + "'")
+        self.to_stack(v)
         self.is_next_operand = True
             
     def parse(self, str):
@@ -149,6 +165,8 @@ class Parser:
 class Calculator:
     'Calculation expression in RPN (Reverse Polish notation)'
     def calc(self, lst):
+        if len(lst) == 0:
+            return 0
         self.stack = Stack()
         for el in lst:
             if type(el) is float:
@@ -168,6 +186,8 @@ class Calculator:
                     self.stack.push(op1 * op2)
                 elif el == '/':
                     self.stack.push(op1 / op2)
+                elif el == '^':
+                    self.stack.push(op1 ** op2)
         return self.stack.pop() 
 
 if len(sys.argv) == 1 or sys.argv[1] in {"-h", "-help"}:
@@ -179,10 +199,8 @@ try:
     p = Parser(Lexer())
     c = Calculator()
     for line in file_in:
-        line = line.strip()
-        if not len(line): continue
         try:
-            res = p.parse(line)
+            res = p.parse(line.strip())
         except MyException as e: 
             out.write(prog_name + " " + e.msg + "\n")
             continue
