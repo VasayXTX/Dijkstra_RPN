@@ -6,7 +6,7 @@ prog_name = "Dijkstra_RPN"
 class MyException(Exception):
     def __init__(self, pos, text):
         self.text = text
-        self.pos = pos
+        self.pos = pos + 1
     
     @property     
     def msg(self):
@@ -93,7 +93,7 @@ class Parser:
         elif t.type == 'PLUS':
             self.to_stack('up')
         else:
-            raise MyException(t.lexpos, "Invalid expression")
+            raise MyException(t.lexpos, "Invalid expression. Unexpected symbol '" + t.value + "'")
         self.is_next_operand = True
         
     def parse_operation(self, t):
@@ -101,10 +101,12 @@ class Parser:
             self.to_stack('+')
         elif t.type == 'MINUS':
             self.to_stack('-')
-        if t.type == 'MUL':
+        elif t.type == 'MUL':
             self.to_stack('*')
-        if t.type == 'DIV':
+        elif t.type == 'DIV':
             self.to_stack('/')
+        else:
+            raise MyException(t.lexpos, "Invalid expression. Unexpected symbol '" + str(t.value) + "'")
         self.is_next_operand = True
             
     def parse(self, str):
@@ -116,15 +118,47 @@ class Parser:
             t = self.lexer.next()
             if not t:
                 while not self.stack.is_empty():
+                    if self.stack.back() == '(':
+                        raise MyException(0, "Invalid expression. Single opening bracket")
                     self.out.append(self.stack.pop())
                 break
-            if self.is_next_operand:
+            if t.type == 'RBRACKET':
+                while not self.stack.is_empty() and self.stack.back() != '(':
+                    self.out.append(self.stack.pop())
+                if self.stack.is_empty():
+                    raise MyException(t.lexpos, "Invalid expression. Single closing bracket")
+                self.stack.pop()
+            elif self.is_next_operand:
                 self.parse_operand(t)
             else:
                 self.parse_operation(t) 
         return self.out
-            
+
+class Calculator:
+    def calc(self, lst):
+        self.stack = Stack()
+        for el in lst:
+            if type(el) is float:
+                self.stack.push(el)
+            elif el == 'up':
+                pass
+            elif el == 'um':
+                self.stack.push(-self.stack.pop())
+            else:
+                op2 = self.stack.pop()
+                op1 = self.stack.pop()
+                if el == '+': 
+                    self.stack.push(op1 + op2)
+                elif el == '-':
+                    self.stack.push(op1 - op2)
+                elif el == '*':
+                    self.stack.push(op1 * op2)
+                elif el == '/':
+                    self.stack.push(op1 / op2)
+        return self.stack.pop() 
+    
 p = Parser(Lexer())
+c = Calculator()
 for line in open("input.in", "r"):
     line = line.strip()
     if not len(line): continue
@@ -133,6 +167,4 @@ for line in open("input.in", "r"):
     except MyException as e: 
         print(prog_name + " " + e.msg)
         continue
-    print(res)
-    
-#print(p.get_priority(r'u-'))
+    print(str(res) + " --> " + str(c.calc(res)))
