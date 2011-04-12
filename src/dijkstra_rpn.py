@@ -75,6 +75,7 @@ class Stack:
         return self.s[len(self.s)-1]
         
 class Parser:
+    'Parsing expression and convert it to RPN (Reverse Polish notation)'
     def __init__(self, lexer):
         self.priority = [r'\(', r'\)', r'\+|-', r'\*|/', r'(um)|(up)']
         self.lexer = lexer
@@ -83,9 +84,12 @@ class Parser:
         for i, el in enumerate(self.priority):
             if re.search(el, sym): return i
 
+    def is_except(self, sym):
+        return re.search('(um)|(up)', sym)
+    
     def to_stack(self, sym):
         pr = self.get_priority(sym)
-        while not self.stack.is_empty() and pr <= self.get_priority(self.stack.back()):
+        while not self.stack.is_empty() and pr <= self.get_priority(self.stack.back()) and not self.is_except(sym):
             self.out.append(self.stack.pop())
         self.stack.push(sym)
                          
@@ -143,6 +147,7 @@ class Parser:
         return self.out
 
 class Calculator:
+    'Calculation expression in RPN (Reverse Polish notation)'
     def calc(self, lst):
         self.stack = Stack()
         for el in lst:
