@@ -1,7 +1,15 @@
+# -*- coding: utf-8 -*-
+
 import ply.lex as lex
 import re
+import sys
 
 prog_name = "Dijkstra_RPN"
+prog_help =  '''Dijkstra_RPN v1.0. Copyright Vasiliy Tsubenko
+Instruction:    python3.x dijkstra_rpn.py INPUT OUTPUT
+                INPUT  - file for input
+                OUTPUT - file for output. If not specified, the program outputs to console
+P.S.: For the work required module PLY (http://www.dabeaz.com/ply)'''
 
 class MyException(Exception):
     def __init__(self, pos, text):
@@ -156,15 +164,24 @@ class Calculator:
                 elif el == '/':
                     self.stack.push(op1 / op2)
         return self.stack.pop() 
-    
-p = Parser(Lexer())
-c = Calculator()
-for line in open("input.in", "r"):
-    line = line.strip()
-    if not len(line): continue
-    try:
-        res = p.parse(line)
-    except MyException as e: 
-        print(prog_name + " " + e.msg)
-        continue
-    print(str(res) + " --> " + str(c.calc(res)))
+
+if len(sys.argv) == 1 or sys.argv[1] in {"-h", "-help"}:
+    sys.stdout.write(prog_help)
+    raise SystemExit(0)
+try:
+    file_in = open(sys.argv[1], "r")
+    out = open(sys.argv[2], "w") if len(sys.argv) > 2 else sys.stdout
+    p = Parser(Lexer())
+    c = Calculator()
+    for line in file_in:
+        line = line.strip()
+        if not len(line): continue
+        try:
+            res = p.parse(line)
+        except MyException as e: 
+            out.write(prog_name + " " + e.msg + "\n")
+            continue
+        out.write(str(res) + " --> " + str(c.calc(res)) + "\n")
+except IOError as err:
+    sys.stderr.write(prog_name + " : " + str(err))
+    raise SystemExit(1)
