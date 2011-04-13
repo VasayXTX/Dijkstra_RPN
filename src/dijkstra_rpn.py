@@ -79,12 +79,12 @@ class Stack:
 class Parser:
     'Parsing expression and convert it to RPN (Reverse Polish notation)'
     priority = (
-                r'\(', 
-                r'\)', 
-                r'\+|-', 
-                r'\*|/', 
-                r'\^', 
-                r'(um)|(up)'
+                (r'\(',        'l'),
+                (r'\)',        'l'),
+                (r'\+|-',      'l'), 
+                (r'\*|/',      'l'),
+                (r'\^',        'r'),
+                (r'(um)|(up)', 'r')
                 )
     
     bin_operation = {
@@ -96,30 +96,32 @@ class Parser:
                      }
     
     un_operation = {
-                    'PLUS':    'um',
-                    'MINUS':   'up'
+                    'PLUS':    'up',
+                    'MINUS':   'um'
                     }
     
     def __init__(self, lexer):
         self.lexer = lexer
         
     def get_priority(self, sym):
-        for i, el in enumerate(Parser.priority):
-            if re.match(el, sym): return i
-
-    def is_right(self, sym):
-        return re.match('(um)|(up)|(\^)', sym)
+        for i, (el, a)  in enumerate(Parser.priority):
+            if re.match(el, sym): return i, a
     
     def to_stack(self, sym):
-        pr = self.get_priority(sym)
-        while not self.stack.is_empty() and pr <= self.get_priority(self.stack.back()) and not self.is_right(sym):
-            self.out.append(self.stack.pop())
+        sym_pr, sym_a = self.get_priority(sym)
+        while not self.stack.is_empty():
+            pr, a = self.get_priority(self.stack.back())
+            cmp = (sym_pr < pr) if sym_a == 'r' and a == 'r' else (sym_pr <= pr)
+            if cmp:
+                self.out.append(self.stack.pop())
+            else:
+                break
         self.stack.push(sym)
                          
     def parse_operand(self, t):
         v = Parser.un_operation.get(t.type)
         if v:
-            self.stack.push(v)
+            self.to_stack(v)
         elif t.type == 'NUMBER': 
             self.out.append(t.value)
             self.is_next_operand = False
@@ -150,20 +152,30 @@ class Parser:
                         raise MyException(0, "Invalid expression. Single opening bracket")
                     self.out.append(self.stack.pop())
                 break
-            if t.type == 'RBRACKET':
+            if self.is_next_operand:
+                self.parse_operand(t)
+            elif t.type == 'RBRACKET':
                 while not self.stack.is_empty() and self.stack.back() != '(':
                     self.out.append(self.stack.pop())
                 if self.stack.is_empty():
                     raise MyException(t.lexpos, "Invalid expression. Single closing bracket")
                 self.stack.pop()
-            elif self.is_next_operand:
-                self.parse_operand(t)
             else:
                 self.parse_operation(t) 
         return self.out
 
 class Calculator:
     'Calculation expression in RPN (Reverse Polish notation)'
+    func = {
+            'up':   (1, lambda a: +a),
+            'um':   (1, lambda a: -a),
+            '+':    (2, lambda a, b: a + b),
+            '-':    (2, lambda a, b: a - b),
+            '*':    (2, lambda a, b: a * b),
+            '/':    (2, lambda a, b: a / b),
+            '^':    (2, lambda a, b: a ** b)
+            }
+    
     def calc(self, lst):
         if len(lst) == 0:
             return 0
@@ -171,23 +183,14 @@ class Calculator:
         for el in lst:
             if type(el) is float:
                 self.stack.push(el)
-            elif el == 'up':
-                pass
-            elif el == 'um':
-                self.stack.push(-self.stack.pop())
-            else:
-                op2 = self.stack.pop()
-                op1 = self.stack.pop()
-                if el == '+': 
-                    self.stack.push(op1 + op2)
-                elif el == '-':
-                    self.stack.push(op1 - op2)
-                elif el == '*':
-                    self.stack.push(op1 * op2)
-                elif el == '/':
-                    self.stack.push(op1 / op2)
-                elif el == '^':
-                    self.stack.push(op1 ** op2)
+                continue
+            argc, f = Calculator.func[el]
+            argv = [self.stack.pop() for i in range(argc)]
+            argv.reverse()
+            try:
+                self.stack.push(f(*argv))
+            except ZeroDivisionError as err:
+                raise MyException(0, "Invalid expression. " + str(err)[:1].upper() + str(err)[1:].lower())
         return self.stack.pop() 
 
 if len(sys.argv) == 1 or sys.argv[1] in {"-h", "-help"}:
@@ -201,10 +204,10 @@ try:
     for line in file_in:
         try:
             res = p.parse(line.strip())
+            out.write(str(res) + " --> " + str(c.calc(res)) + "\n")
         except MyException as e: 
             out.write(prog_name + " " + e.msg + "\n")
             continue
-        out.write(str(res) + " --> " + str(c.calc(res)) + "\n")
 except IOError as err:
     sys.stderr.write(prog_name + " : " + str(err))
     raise SystemExit(1)
