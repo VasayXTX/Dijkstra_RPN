@@ -147,6 +147,8 @@ class Parser:
         while True:
             t = self.lexer.next()
             if not t:
+                if self.is_next_operand:
+                    raise MyException(0, "Invalid expression. Expected operand")
                 while not self.stack.is_empty():
                     if self.stack.back() == '(':
                         raise MyException(0, "Invalid expression. Single opening bracket")
